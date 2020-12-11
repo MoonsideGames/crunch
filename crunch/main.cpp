@@ -1,19 +1,19 @@
 /*
- 
+
  MIT License
- 
+
  Copyright (c) 2017 Chevy Ray Johnston
- 
+
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
  in the Software without restriction, including without limitation the rights
  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  copies of the Software, and to permit persons to whom the Software is
  furnished to do so, subject to the following conditions:
- 
+
  The above copyright notice and this permission notice shall be included in all
  copies or substantial portions of the Software.
- 
+
  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -21,16 +21,16 @@
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
- 
+
  crunch - command line texture packer
  ====================================
- 
+
  usage:
     crunch [OUTPUT] [INPUT1,INPUT2,INPUT3...] [OPTIONS...]
- 
+
  example:
     crunch bin/atlases/atlas assets/characters,assets/tiles -p -t -v -u -r
- 
+
  options:
     -d  --default           use default settings (-x -p -t -u)
     -x  --xml               saves the atlas data as a .xml file
@@ -44,7 +44,7 @@
     -r  --rotate            enabled rotating bitmaps 90 degrees clockwise when packing
     -s# --size#             max atlas size (# can be 4096, 2048, 1024, 512, 256, 128, or 64)
     -p# --pad#              padding between images (# can be from 0 to 16)
- 
+
  binary format:
     [int16] num_textures (below block is repeated this many times)
         [string] name
@@ -68,6 +68,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <filesystem>
 #include "tinydir.h"
 #include "bitmap.hpp"
 #include "packer.hpp"
@@ -76,6 +77,7 @@
 #include "str.hpp"
 
 using namespace std;
+namespace fs = std::filesystem;
 
 static int optSize;
 static int optPadding;
@@ -131,7 +133,7 @@ static void LoadBitmap(const string& prefix, const string& path)
 {
     if (optVerbose)
         cout << '\t' << path << endl;
-    
+
     bitmaps.push_back(new Bitmap(path, prefix + GetFileName(path), optPremultiply, optTrim));
 }
 
@@ -139,15 +141,17 @@ static void LoadBitmaps(const string& root, const string& prefix)
 {
     static string dot1 = ".";
     static string dot2 = "..";
-    
+
     tinydir_dir dir;
     tinydir_open(&dir, StrToPath(root).data());
-    
+
     while (dir.has_next)
     {
         tinydir_file file;
         tinydir_readfile(&dir, &file);
-        
+
+        cout << file.is_dir << endl;
+
         if (file.is_dir)
         {
             if (dot1 != PathToStr(file.name) && dot2 != PathToStr(file.name))
@@ -155,10 +159,10 @@ static void LoadBitmaps(const string& root, const string& prefix)
         }
         else if (PathToStr(file.extension) == "png")
             LoadBitmap(prefix, PathToStr(file.path));
-        
+
         tinydir_next(&dir);
     }
-    
+
     tinydir_close(&dir);
 }
 
@@ -204,17 +208,17 @@ int crunch_main(int argc, const char* argv[])
     for (int i = 0; i < argc; ++i)
         cout << argv[i] << ' ';
     cout << endl;
-    
+
     if (argc < 3)
     {
         cerr << "invalid input, expected: \"crunch [OUTPUT DIRECTORY] [INPUTS] [OPTIONS...]\"" << endl;
         return EXIT_FAILURE;
     }
-    
+
     //Get the output directory and name
     string outputDir, name;
     SplitFileName(argv[1], &outputDir, &name, nullptr);
-    
+
     //Get all the input files and directories
     vector<string> inputs;
     stringstream ss(argv[2]);
@@ -224,7 +228,7 @@ int crunch_main(int argc, const char* argv[])
         getline(ss, inputStr, ',');
         inputs.push_back(inputStr);
     }
-    
+
     //Get the options
     optSize = 4096;
     optPadding = 1;
@@ -273,7 +277,7 @@ int crunch_main(int argc, const char* argv[])
             return EXIT_FAILURE;
         }
     }
-    
+
     //Hash the arguments and input directories
     size_t newHash = 0;
     for (int i = 1; i < argc; ++i)
@@ -285,7 +289,7 @@ int crunch_main(int argc, const char* argv[])
         else
             HashFile(newHash, inputs[i]);
     }
-    
+
     //Load the old hash
     size_t oldHash;
     if (LoadHash(oldHash, outputDir + name + ".hash"))
@@ -296,7 +300,7 @@ int crunch_main(int argc, const char* argv[])
             return EXIT_SUCCESS;
         }
     }
-    
+
     /*-d  --default           use default settings (-x -p -t -u)
     -x  --xml               saves the atlas data as a .xml file
     -b  --binary            saves the atlas data as a .bin file
@@ -309,7 +313,7 @@ int crunch_main(int argc, const char* argv[])
     -r  --rotate            enabled rotating bitmaps 90 degrees clockwise when packing
     -s# --size#             max atlas size (# can be 4096, 2048, 1024, 512, or 256)
     -p# --pad#              padding between images (# can be from 0 to 16)*/
-    
+
     if (optVerbose)
     {
         cout << "options..." << endl;
@@ -325,7 +329,7 @@ int crunch_main(int argc, const char* argv[])
         cout << "\t--size: " << optSize << endl;
         cout << "\t--pad: " << optPadding << endl;
     }
-    
+
     //Remove old files
     RemoveFile(outputDir + name + ".hash");
     RemoveFile(outputDir + name + ".bin");
@@ -333,23 +337,27 @@ int crunch_main(int argc, const char* argv[])
     RemoveFile(outputDir + name + ".json");
     for (size_t i = 0; i < 16; ++i)
         RemoveFile(outputDir + name + to_string(i) + ".png");
-    
+
     //Load the bitmaps from all the input files and directories
     if (optVerbose)
         cout << "loading images..." << endl;
     for (size_t i = 0; i < inputs.size(); ++i)
     {
-        if (inputs[i].rfind('.') != string::npos)
-            LoadBitmap("", inputs[i]);
-        else
+        if (fs::is_directory(inputs[i]))
+        {
             LoadBitmaps(inputs[i], "");
+        }
+        else
+        {
+            LoadBitmap("", inputs[i]);
+        }
     }
-    
+
     //Sort the bitmaps by area
     sort(bitmaps.begin(), bitmaps.end(), [](const Bitmap* a, const Bitmap* b) {
         return (a->width * a->height) < (b->width * b->height);
     });
-    
+
     //Pack the bitmaps
     while (!bitmaps.empty())
     {
@@ -360,14 +368,14 @@ int crunch_main(int argc, const char* argv[])
         packers.push_back(packer);
         if (optVerbose)
             cout << "finished packing: " << name << to_string(packers.size() - 1) << " (" << packer->width << " x " << packer->height << ')' << endl;
-    
+
         if (packer->bitmaps.empty())
         {
             cerr << "packing failed, could not fit bitmap: " << (bitmaps.back())->name << endl;
             return EXIT_FAILURE;
         }
     }
-    
+
     //Save the atlas image
     for (size_t i = 0; i < packers.size(); ++i)
     {
@@ -375,39 +383,39 @@ int crunch_main(int argc, const char* argv[])
             cout << "writing png: " << outputDir << name << to_string(i) << ".png" << endl;
         packers[i]->SavePng(outputDir + name + to_string(i) + ".png");
     }
-    
+
     //Save the atlas binary
     if (optBinary)
     {
         if (optVerbose)
             cout << "writing bin: " << outputDir << name << ".bin" << endl;
-        
+
         ofstream bin(outputDir + name + ".bin", ios::binary);
         WriteShort(bin, (int16_t)packers.size());
         for (size_t i = 0; i < packers.size(); ++i)
             packers[i]->SaveBin(name + to_string(i), bin, optTrim, optRotate);
         bin.close();
     }
-    
+
     //Save the atlas xml
     if (optXml)
     {
         if (optVerbose)
             cout << "writing xml: " << outputDir << name << ".xml" << endl;
-        
+
         ofstream xml(outputDir + name + ".xml");
         xml << "<atlas>" << endl;
         for (size_t i = 0; i < packers.size(); ++i)
             packers[i]->SaveXml(name + to_string(i), xml, optTrim, optRotate);
         xml << "</atlas>";
     }
-    
+
     //Save the atlas json
     if (optJson)
     {
         if (optVerbose)
             cout << "writing json: " << outputDir << name << ".json" << endl;
-        
+
         ofstream json(outputDir + name + ".json");
         json << '{' << endl;
         json << "\t\"textures\":[" << endl;
@@ -423,9 +431,9 @@ int crunch_main(int argc, const char* argv[])
         json << "\t]" << endl;
         json << '}';
     }
-    
+
     //Save the new hash
     SaveHash(newHash, outputDir + name + ".hash");
-    
+
     return EXIT_SUCCESS;
 }
