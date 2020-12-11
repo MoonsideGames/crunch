@@ -284,10 +284,14 @@ int crunch_main(int argc, const char* argv[])
         HashString(newHash, argv[i]);
     for (size_t i = 0; i < inputs.size(); ++i)
     {
-        if (inputs[i].rfind('.') == string::npos)
+        if (fs::is_directory(inputs[i]))
+        {
             HashFiles(newHash, inputs[i]);
+        }
         else
+        {
             HashFile(newHash, inputs[i]);
+        }
     }
 
     //Load the old hash
