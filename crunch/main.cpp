@@ -69,7 +69,6 @@
 #include <vector>
 #include <algorithm>
 #include <filesystem>
-#include "tinydir.h"
 #include "bitmap.hpp"
 #include "packer.hpp"
 #include "binary.hpp"
@@ -129,41 +128,36 @@ static string GetFileName(const string& path)
     return name;
 }
 
-static void LoadBitmap(const string& prefix, const string& path)
+static void LoadBitmap(fs::path path)
 {
     if (optVerbose)
         cout << '\t' << path << endl;
 
-    bitmaps.push_back(new Bitmap(path, prefix + GetFileName(path), optPremultiply, optTrim));
+    bitmaps.push_back(new Bitmap(path.string(), path.filename(), optPremultiply, optTrim));
 }
 
-static void LoadBitmaps(const string& root, const string& prefix)
+static void LoadBitmaps(const string& root)
 {
     static string dot1 = ".";
     static string dot2 = "..";
+    fs::path path = root;
 
-    tinydir_dir dir;
-    tinydir_open(&dir, StrToPath(root).data());
-
-    while (dir.has_next)
+    if (fs::is_directory(root))
     {
-        tinydir_file file;
-        tinydir_readfile(&dir, &file);
-
-        cout << file.is_dir << endl;
-
-        if (file.is_dir)
-        {
-            if (dot1 != PathToStr(file.name) && dot2 != PathToStr(file.name))
-                LoadBitmaps(PathToStr(file.path), prefix + PathToStr(file.name) + "/");
+        for (fs::directory_entry const& entry : fs::recursive_directory_iterator(root)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".png")
+            {
+                LoadBitmap(entry.path().string());
+            }
         }
-        else if (PathToStr(file.extension) == "png")
-            LoadBitmap(prefix, PathToStr(file.path));
-
-        tinydir_next(&dir);
     }
-
-    tinydir_close(&dir);
+    else
+    {
+        if (fs::is_regular_file(root) && path.extension() == ".png")
+        {
+            LoadBitmap(path.string());
+        }
+    }
 }
 
 static void RemoveFile(string file)
@@ -349,11 +343,11 @@ int crunch_main(int argc, const char* argv[])
     {
         if (fs::is_directory(inputs[i]))
         {
-            LoadBitmaps(inputs[i], "");
+            LoadBitmaps(inputs[i]);
         }
         else
         {
-            LoadBitmap("", inputs[i]);
+            LoadBitmap(inputs[i]);
         }
     }
 

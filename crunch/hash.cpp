@@ -30,8 +30,11 @@
 #include <iostream>
 #include <sstream>
 #include <limits>
-#include "tinydir.h"
+#include <filesystem>
 #include "str.hpp"
+
+using namespace std;
+namespace fs = std::filesystem;
 
 template <class T>
 void HashCombine(std::size_t& hash, const T& v)
@@ -72,27 +75,24 @@ void HashFiles(size_t& hash, const string& root)
 {
     static string dot1 = ".";
     static string dot2 = "..";
+    fs::path path = root;
 
-    tinydir_dir dir;
-    tinydir_open(&dir, StrToPath(root).data());
-
-    while (dir.has_next)
+    if (fs::is_directory(root))
     {
-        tinydir_file file;
-        tinydir_readfile(&dir, &file);
-
-        if (file.is_dir)
-        {
-            if (dot1 != PathToStr(file.name) && dot2 != PathToStr(file.name))
-                HashFiles(hash, PathToStr(file.path));
+        for (fs::directory_entry const& entry : fs::recursive_directory_iterator(root)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".png")
+            {
+                HashFile(hash, entry.path().string());
+            }
         }
-        else if (PathToStr(file.extension) == "png")
-            HashFile(hash, PathToStr(file.path));
-
-        tinydir_next(&dir);
     }
-
-    tinydir_close(&dir);
+    else
+    {
+        if (fs::is_regular_file(root) && path.extension() == ".png")
+        {
+            HashFile(hash, path.string());
+        }
+    }
 }
 
 void HashData(size_t& hash, const char* data, size_t size)
