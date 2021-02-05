@@ -133,7 +133,7 @@ static void LoadBitmap(fs::path path)
     if (optVerbose)
         cout << '\t' << path << endl;
 
-    bitmaps.push_back(new Bitmap(path.string(), path.filename(), optPremultiply, optTrim));
+    bitmaps.push_back(new Bitmap(path.string(), path.filename().string(), optPremultiply, optTrim));
 }
 
 static void LoadBitmaps(const string& root)
@@ -282,7 +282,7 @@ int crunch_main(int argc, const char* argv[])
         {
             HashFiles(newHash, inputs[i]);
         }
-        else
+        else if (fs::is_regular_file(inputs[i]))
         {
             HashFile(newHash, inputs[i]);
         }
