@@ -92,48 +92,20 @@ static bool optRotate;
 static vector<Bitmap*> bitmaps;
 static vector<Packer*> packers;
 
-static void SplitFileName(const string& path, string* dir, string* name, string* ext)
-{
-    size_t si = path.rfind('/') + 1;
-    if (si == string::npos)
-        si = 0;
-    size_t di = path.rfind('.');
-    if (dir != nullptr)
-    {
-        if (si > 0)
-            *dir = path.substr(0, si);
-        else
-            *dir = "";
-    }
-    if (name != nullptr)
-    {
-        if (di != string::npos)
-            *name = path.substr(si, di - si);
-        else
-            *name = path.substr(si);
-    }
-    if (ext != nullptr)
-    {
-        if (di != string::npos)
-            *ext = path.substr(di);
-        else
-            *ext = "";
-    }
-}
-
-static string GetFileName(const string& path)
-{
-    string name;
-    SplitFileName(path, nullptr, &name, nullptr);
-    return name;
-}
-
-static void LoadBitmap(fs::path path)
+static void LoadBitmap(fs::path directory, fs::path path)
 {
     if (optVerbose)
         cout << '\t' << path << endl;
 
-    bitmaps.push_back(new Bitmap(path.string(), path.filename().string(), optPremultiply, optTrim));
+    string relativePath = (path.parent_path() / path.filename().stem()).generic_string();
+    size_t pos = path.generic_string().find(directory.generic_string());
+    relativePath.erase(pos, directory.string().length());
+
+    cout << directory.generic_string() << endl;
+    cout << path.generic_string() << endl;
+    cout << pos << endl;
+
+    bitmaps.push_back(new Bitmap(path.generic_string(), relativePath, optPremultiply, optTrim));
 }
 
 static void LoadBitmaps(const string& root)
@@ -147,7 +119,7 @@ static void LoadBitmaps(const string& root)
         for (fs::directory_entry const& entry : fs::recursive_directory_iterator(root)) {
             if (entry.is_regular_file() && entry.path().extension() == ".png")
             {
-                LoadBitmap(entry.path().string());
+                LoadBitmap(root, entry.path().string());
             }
         }
     }
@@ -155,7 +127,7 @@ static void LoadBitmaps(const string& root)
     {
         if (fs::is_regular_file(root) && path.extension() == ".png")
         {
-            LoadBitmap(path.string());
+            LoadBitmap(root, path.string());
         }
     }
 }
@@ -212,6 +184,7 @@ int crunch_main(int argc, const char* argv[])
     //Get the output directory and name
     fs::path outputPath = argv[1];
     string outputName = (outputPath.parent_path() / outputPath.filename().stem()).string();
+    string relativePath = outputPath.parent_path().string();
     string name = outputPath.filename().stem().string();
 
     //Get all the input files and directories
@@ -346,10 +319,6 @@ int crunch_main(int argc, const char* argv[])
         {
             LoadBitmaps(inputs[i]);
         }
-        else
-        {
-            LoadBitmap(inputs[i]);
-        }
     }
 
     //Sort the bitmaps by area
@@ -392,7 +361,7 @@ int crunch_main(int argc, const char* argv[])
         ofstream bin(outputName + ".bin", ios::binary);
         WriteShort(bin, (int16_t)packers.size());
         for (size_t i = 0; i < packers.size(); ++i)
-            packers[i]->SaveBin(name + to_string(i), bin, optTrim, optRotate);
+            packers[i]->SaveBin(relativePath + to_string(i), bin, optTrim, optRotate);
         bin.close();
     }
 
@@ -405,7 +374,7 @@ int crunch_main(int argc, const char* argv[])
         ofstream xml(outputName + ".xml");
         xml << "<atlas>" << endl;
         for (size_t i = 0; i < packers.size(); ++i)
-            packers[i]->SaveXml(name + to_string(i), xml, optTrim, optRotate);
+            packers[i]->SaveXml(relativePath + to_string(i), xml, optTrim, optRotate);
         xml << "</atlas>";
     }
 
