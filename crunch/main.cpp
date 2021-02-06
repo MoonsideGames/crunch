@@ -210,8 +210,9 @@ int crunch_main(int argc, const char* argv[])
     }
 
     //Get the output directory and name
-    string outputDir, name;
-    SplitFileName(argv[1], &outputDir, &name, nullptr);
+    fs::path outputPath = argv[1];
+    string outputName = (outputPath.parent_path() / outputPath.filename().stem()).string();
+    string name = outputPath.filename().stem().string();
 
     //Get all the input files and directories
     vector<string> inputs;
@@ -290,11 +291,11 @@ int crunch_main(int argc, const char* argv[])
 
     //Load the old hash
     size_t oldHash;
-    if (LoadHash(oldHash, outputDir + name + ".hash"))
+    if (LoadHash(oldHash, outputName + ".hash"))
     {
         if (!optForce && newHash == oldHash)
         {
-            cout << "atlas is unchanged: " << name << endl;
+            cout << "atlas is unchanged: " << outputName << endl;
             return EXIT_SUCCESS;
         }
     }
@@ -329,12 +330,12 @@ int crunch_main(int argc, const char* argv[])
     }
 
     //Remove old files
-    RemoveFile(outputDir + name + ".hash");
-    RemoveFile(outputDir + name + ".bin");
-    RemoveFile(outputDir + name + ".xml");
-    RemoveFile(outputDir + name + ".json");
+    RemoveFile(outputName + ".hash");
+    RemoveFile(outputName + ".bin");
+    RemoveFile(outputName + ".xml");
+    RemoveFile(outputName + ".json");
     for (size_t i = 0; i < 16; ++i)
-        RemoveFile(outputDir + name + to_string(i) + ".png");
+        RemoveFile(outputName + to_string(i) + ".png");
 
     //Load the bitmaps from all the input files and directories
     if (optVerbose)
@@ -365,7 +366,7 @@ int crunch_main(int argc, const char* argv[])
         packer->Pack(bitmaps, optVerbose, optUnique, optRotate);
         packers.push_back(packer);
         if (optVerbose)
-            cout << "finished packing: " << name << to_string(packers.size() - 1) << " (" << packer->width << " x " << packer->height << ')' << endl;
+            cout << "finished packing: " << outputName << to_string(packers.size() - 1) << " (" << packer->width << " x " << packer->height << ')' << endl;
 
         if (packer->bitmaps.empty())
         {
@@ -378,17 +379,17 @@ int crunch_main(int argc, const char* argv[])
     for (size_t i = 0; i < packers.size(); ++i)
     {
         if (optVerbose)
-            cout << "writing png: " << outputDir << name << to_string(i) << ".png" << endl;
-        packers[i]->SavePng(outputDir + name + to_string(i) + ".png");
+            cout << "writing png: " << outputName << to_string(i) << ".png" << endl;
+        packers[i]->SavePng(outputName + to_string(i) + ".png");
     }
 
     //Save the atlas binary
     if (optBinary)
     {
         if (optVerbose)
-            cout << "writing bin: " << outputDir << name << ".bin" << endl;
+            cout << "writing bin: " << outputName << ".bin" << endl;
 
-        ofstream bin(outputDir + name + ".bin", ios::binary);
+        ofstream bin(outputName + ".bin", ios::binary);
         WriteShort(bin, (int16_t)packers.size());
         for (size_t i = 0; i < packers.size(); ++i)
             packers[i]->SaveBin(name + to_string(i), bin, optTrim, optRotate);
@@ -399,9 +400,9 @@ int crunch_main(int argc, const char* argv[])
     if (optXml)
     {
         if (optVerbose)
-            cout << "writing xml: " << outputDir << name << ".xml" << endl;
+            cout << "writing xml: " << outputName << ".xml" << endl;
 
-        ofstream xml(outputDir + name + ".xml");
+        ofstream xml(outputName + ".xml");
         xml << "<atlas>" << endl;
         for (size_t i = 0; i < packers.size(); ++i)
             packers[i]->SaveXml(name + to_string(i), xml, optTrim, optRotate);
@@ -412,9 +413,9 @@ int crunch_main(int argc, const char* argv[])
     if (optJson)
     {
         if (optVerbose)
-            cout << "writing json: " << outputDir << name << ".json" << endl;
+            cout << "writing json: " << outputName << ".json" << endl;
 
-        ofstream json(outputDir + name + ".json");
+        ofstream json(outputName + ".json");
         json << '{' << endl;
         json << "\t\"textures\":[" << endl;
         for (size_t i = 0; i < packers.size(); ++i)
@@ -431,7 +432,7 @@ int crunch_main(int argc, const char* argv[])
     }
 
     //Save the new hash
-    SaveHash(newHash, outputDir + name + ".hash");
+    SaveHash(newHash, outputName + ".hash");
 
     return EXIT_SUCCESS;
 }
